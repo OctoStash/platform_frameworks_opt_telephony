@@ -755,4 +755,13 @@ public abstract class BaseCommands implements CommandsInterface {
     public int getLteOnGsmMode() {
         return TelephonyManager.getLteOnGsmModeStatic();
     }
+
+    /**
+     * @hide
+     */
+    @Override
+    public int getLteOnGsmMode() {
+        return TelephonyManager.getLteOnGsmModeStatic();
+    }
+
 }
