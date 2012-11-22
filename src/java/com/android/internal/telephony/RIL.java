@@ -2327,7 +2327,8 @@ public class RIL extends BaseCommands implements CommandsInterface {
      * @param error is the RIL_Errno sent back
      * @param loggable true means to print all requests in mRequestList
      */
-    protected void clearRequestList(int error, boolean loggable) {
+
+    protected void clearRequestsList(int error, boolean loggable) {
         RILRequest rr;
         synchronized (mRequestList) {
             int count = mRequestList.size();
@@ -2578,7 +2579,7 @@ public class RIL extends BaseCommands implements CommandsInterface {
         return rr;
     }
 
-    static String
+    protected String
     retToString(int req, Object ret) {
         if (ret == null) return "";
         switch (req) {
@@ -3924,11 +3925,13 @@ public class RIL extends BaseCommands implements CommandsInterface {
     }
 
     protected void riljLog(String msg) {
-        Rlog.d(RILJ_LOG_TAG, msg);
+        Rlog.d(RILJ_LOG_TAG, msg
+                + (mInstanceId != null ? (" [SUB" + mInstanceId + "]") : ""));
     }
 
     protected void riljLogv(String msg) {
-        Rlog.v(RILJ_LOG_TAG, msg);
+        Rlog.v(RILJ_LOG_TAG, msg
+                + (mInstanceId != null ? (" [SUB" + mInstanceId + "]") : ""));
     }
 
     protected void unsljLog(int response) {
