@@ -297,6 +297,9 @@ public class CatService extends Handler implements AppInterface {
             case SEND_USSD:
                 // Samsung STK
                 if (cmdParams instanceof SendUSSDParams) {
+
+                if (mContext.getResources().
+                        getBoolean(com.android.internal.R.bool.config_samsung_stk)) {
                     handleProactiveCommandSendUSSD((SendUSSDParams) cmdParams);
                 }
                 if ((((DisplayTextParams)cmdParams).mTextMsg.text != null)
