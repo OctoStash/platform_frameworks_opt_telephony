@@ -378,6 +378,52 @@ public class SamsungExynos4RIL extends RIL implements CommandsInterface {
         rr.mParcel.writeInt(clirMode);
         rr.mParcel.writeInt(0);  // UUS information is absent
 
+    @Override
+    protected Object
+    responseSignalStrength(Parcel p) {
+        int numInts = 12;
+        int response[];
+        boolean isGsm = true;
+
+        // Get raw data
+        response = new int[numInts];
+        for (int i = 0 ; i < numInts ; i++) {
+            response[i] = p.readInt();
+        }
+
+        /*
+        Log.d(LOG_TAG, "gsmSignalStrength=" + response[0]);
+        Log.d(LOG_TAG, "gsmBitErrorRate=" + response[1]);
+        Log.d(LOG_TAG, "cdmaDbm=" + response[2]);
+        Log.d(LOG_TAG, "cdmaEcio=" + response[3]);
+        Log.d(LOG_TAG, "evdoDbm=" + response[4]);
+        Log.d(LOG_TAG, "evdoEcio=" + response[5]);
+        Log.d(LOG_TAG, "evdoSnr=" + response[6]);
+        Log.d(LOG_TAG, "lteSignalStrength=" + response[7]);
+        Log.d(LOG_TAG, "lteRsrp=" + response[8]);
+        Log.d(LOG_TAG, "lteRsrq=" + response[9]);
+        Log.d(LOG_TAG, "lteRssnr=" + response[10]);
+        Log.d(LOG_TAG, "lteCqi=" + response[11]);
+        */
+
+        int mGsmSignalStrength = response[0]; // Valid values are (0-31, 99) as defined in TS 27.007 8.5
+
+        Log.d(LOG_TAG, "responseSignalStrength (unmodified): gsmSignalStrength=" + mGsmSignalStrength);
+
+        mGsmSignalStrength = mGsmSignalStrength & 0xff; // Get the first 8 bits
+
+        Log.d(LOG_TAG, "responseSignalStrength (corrected): gsmSignalStrength=" + mGsmSignalStrength);
+
+        SignalStrength signalStrength = new SignalStrength(mGsmSignalStrength, response[1], response[2],
+                response[3], response[4], response[5], response[6], isGsm);
+
+        return signalStrength;
+    }
+
+    @Override public void
+    getVoiceRadioTechnology(Message result) {
+        RILRequest rr = RILRequest.obtain(RIL_REQUEST_VOICE_RADIO_TECH, result);
+
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
 
         send(rr);
