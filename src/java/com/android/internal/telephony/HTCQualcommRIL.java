@@ -94,6 +94,58 @@ public class HTCQualcommRIL extends RIL implements CommandsInterface {
             dataCall.gateways = gateways.split(" ");
         }
         return dataCall;
+
+        mSetPreferredNetworkType = networkType;
+
+        super.setPreferredNetworkType(networkType, response);
+    }
+
+    @Override
+    protected Object
+    responseSignalStrength(Parcel p) {
+        /* HTC signal strength format:
+         * 0: GW_SignalStrength
+         * 1: GW_SignalStrength.bitErrorRate
+         * 2: CDMA_SignalStrength.dbm
+         * 3: CDMA_SignalStrength.ecio
+         * 4: EVDO_SignalStrength.dbm
+         * 5: EVDO_SignalStrength.ecio
+         * 6: EVDO_SignalStrength.signalNoiseRatio
+         * 7: ATT_SignalStrength.dbm
+         * 8: ATT_SignalStrength.ecno
+         * 9: LTE_SignalStrength.signalStrength
+         * 10: LTE_SignalStrength.rsrp
+         * 11: LTE_SignalStrength.rsrq
+         * 12: LTE_SignalStrength.rssnr
+         * 13: LTE_SignalStrength.cqi
+         */
+
+        int parcelSize = p.dataSize();
+
+        int gsmSignalStrength = p.readInt();
+        int gsmBitErrorRate = p.readInt();
+        int cdmaDbm = p.readInt();
+        int cdmaEcio = p.readInt();
+        int evdoDbm = p.readInt();
+        int evdoEcio = p.readInt();
+        int evdoSnr = p.readInt();
+        if (parcelSize == 14) {
+            /* Signal strength parcel contains HTC ATT signal strength */
+            p.readInt(); // ATT_SignalStrength.dbm
+            p.readInt(); // ATT_SignalStrength.ecno
+        }
+        int lteSignalStrength = p.readInt();
+        int lteRsrp = p.readInt();
+        int lteRsrq = p.readInt();
+        int lteRssnr = p.readInt();
+        int lteCqi = p.readInt();
+        boolean isGsm = (mPhoneType == RILConstants.GSM_PHONE);
+
+        SignalStrength signalStrength = new SignalStrength(gsmSignalStrength,
+                gsmBitErrorRate, cdmaDbm, cdmaEcio, evdoDbm, evdoEcio, evdoSnr,
+                lteSignalStrength, lteRsrp, lteRsrq, lteRssnr, lteCqi, isGsm);
+
+        return signalStrength;
     }
 
     @Override
