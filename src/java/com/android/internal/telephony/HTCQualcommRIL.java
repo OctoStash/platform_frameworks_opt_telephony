@@ -36,6 +36,14 @@ import com.android.internal.telephony.dataconnection.DataCallResponse;
 
 import java.util.ArrayList;
 
+/**
+ * Qualcomm RIL class for basebands that do not send the SIM status
+ * piggybacked in RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED. Instead,
+ * these radios will send radio state and we have to query for SIM
+ * status separately.
+ *
+ * {@hide}
+ */
 public class HTCQualcommRIL extends RIL implements CommandsInterface {
 
     private static final int RIL_UNSOL_ENTER_LPM = 1523;
@@ -203,9 +211,31 @@ public class HTCQualcommRIL extends RIL implements CommandsInterface {
                 setPreferredNetworkType(mPreferredNetworkType, null);
                 setCdmaSubscriptionSource(mCdmaSubscription, null);
                 setCellInfoListRate(Integer.MAX_VALUE, null);
+
+                boolean skipRadioPowerOff = needsOldRilFeature("skipradiooff");
+
+                // Initial conditions
+                if (!skipRadioPowerOff) {
+                    setRadioPower(false, null);
+                }
+                setPreferredNetworkType(mPreferredNetworkType, null);
+                setCdmaSubscriptionSource(mCdmaSubscription, null);
                 notifyRegistrantsRilConnectionChanged(((int[])ret)[0]);
                 break;
             }
+        }
+    }
+
+    /**
+     * Notify all registrants that the ril has connected or disconnected.
+     *
+     * @param rilVer is the version of the ril or -1 if disconnected.
+     */
+    private void notifyRegistrantsRilConnectionChanged(int rilVer) {
+        mRilVersion = rilVer;
+        if (mRilConnectedRegistrants != null) {
+            mRilConnectedRegistrants.notifyRegistrants(
+                                new AsyncResult (null, new Integer(rilVer), null));
         }
     }
 }
