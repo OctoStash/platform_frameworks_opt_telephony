@@ -514,8 +514,19 @@ public final class DcTracker extends DcTrackerBase {
      */
     @Override
     public boolean getAnyDataEnabled() {
+        return getAnyDataEnabled(false);
+    }
+
+    private boolean getAnyDataEnabled(boolean enableMmsData) {
         synchronized (mDataEnabledLock) {
-            if (!(mInternalDataEnabled && mUserDataEnabled && sPolicyDataEnabled)) return false;
+            if (!(mInternalDataEnabled && (mUserDataEnabled || enableMmsData)
+                    && sPolicyDataEnabled)) {
+                log(String.format("getAnyDataEnabled data disabled: mInternalDataEnabled=%b "
+                        + "mUserDataEnabled=%b enableMmsData=%b sPolicyDataEnabled=%b",
+                        mInternalDataEnabled, mUserDataEnabled,
+                        enableMmsData, sPolicyDataEnabled));
+                return false;
+            }
             for (ApnContext apnContext : mApnContexts.values()) {
                 // Make sure we don't have a context that is going down
                 // and is explicitly disabled.
@@ -643,8 +654,34 @@ public final class DcTracker extends DcTrackerBase {
 
         boolean desiredPowerState = mPhone.getServiceStateTracker().getDesiredPowerState();
 
+        // If MPDN is disabled and if the current active ApnContext cannot handle the
+        // requested apnType, then
+        //  - Disconnect one active low priority data call if there is any, and after
+        //    disconnect setup up the new requested connection.
+        //  - Do not bring up the requested connection, if there is any high priority
+        //    data connection is active.
+        if (SUPPORT_MPDN == false
+                && !isAnyActiveApnContextHandlesType(apnContext.getDataProfileType())) {
+            if (disconnectOneLowerPriorityCall(apnContext.getDataProfileType())) {
+                log("Lower/Equal priority call disconnected.");
+                return false;
+            }
+
+            if (isHigherPriorityDataCallActive(apnContext.getDataProfileType())) {
+                log("Higher priority call active. Ignoring setup data call request.");
+                return false;
+            }
+        }
+
+        // If set the special property, enable mms data even if mobile data is turned off.
+        boolean enableMmsData = false;
+        if (apnContext.getDataProfileType().equals(PhoneConstants.APN_TYPE_MMS)) {
+            enableMmsData = mPhone.getContext().getResources().getBoolean(
+                    com.android.internal.R.bool.config_setup_mms_data);
+        }
+
         if (apnContext.isConnectable() &&
-                isDataAllowed(apnContext) && getAnyDataEnabled() && !isEmergency()) {
+                isDataAllowed(apnContext) && getAnyDataEnabled(enableMmsData) && !isEmergency()) {
             if (apnContext.getState() == DctConstants.State.FAILED) {
                 if (DBG) log("trySetupData: make a FAILED ApnContext IDLE so its reusable");
                 apnContext.setState(DctConstants.State.IDLE);
