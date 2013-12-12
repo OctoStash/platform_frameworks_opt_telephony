@@ -513,6 +513,15 @@ public final class CallManager {
             phone.unregisterForCallWaiting(mHandler);
             phone.unregisterForEcmTimerReset(mHandler);
         }
+
+        if (phone.getPhoneType() == PhoneConstants.PHONE_TYPE_IMS) {
+            phone.unregisterForEcmTimerReset(mHandler);
+            try {
+                phone.unregisterForModifyCallRequest(mHandler);
+            } catch (CallStateException e) {
+                Rlog.e(LOG_TAG, "unregisterForModifyCallRequest ", e);
+            }
+        }
     }
 
     /**
