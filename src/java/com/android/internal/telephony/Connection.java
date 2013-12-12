@@ -28,6 +28,10 @@ public abstract class Connection {
     protected String mCnapName;
     protected int mCnapNamePresentation  = PhoneConstants.PRESENTATION_ALLOWED;
 
+    public CallDetails callDetails = new CallDetails();
+    public CallModify callModifyRequest = null;
+    public String errorInfo;
+
     private static String LOG_TAG = "Connection";
 
     public enum DisconnectCause {
@@ -67,7 +71,12 @@ public abstract class Connection {
         CDMA_PREEMPTED,
         CDMA_NOT_EMERGENCY,              /* not an emergency call */
         CDMA_ACCESS_BLOCKED,            /* Access Blocked by CDMA network */
-        ERROR_UNSPECIFIED
+        EMERGENCY_TEMP_FAILURE,         /* EMERGENCY call failed with temporary fail cause */
+        EMERGENCY_PERM_FAILURE,         /* EMERGENCY call failed with permanent fail cause */
+        ERROR_UNSPECIFIED,
+        /* Ims Disconnect cause grouped from here */
+        SRVCC_CALL_DROP,                /* Call dropped because of SRVCC*/
+        CALL_FAIL_MISC
     }
 
     Object mUserData;
