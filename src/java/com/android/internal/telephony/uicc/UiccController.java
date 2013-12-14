@@ -109,6 +109,22 @@ public class UiccController extends Handler {
         }
     }
 
+    public static void destroy() {
+        synchronized (mLock) {
+            if (mInstance == null) {
+                throw new RuntimeException(
+                        "UiccController.destroy() should only be called after make()");
+            }
+            mInstance.mCi.unregisterForIccStatusChanged(mInstance);
+            mInstance.mCi.unregisterForAvailable(mInstance);
+            mInstance.mCi.unregisterForNotAvailable(mInstance);
+            mInstance.mCi.unregisterForIccRefresh(mInstance);
+            mInstance.mCi = null;
+            mInstance.mContext = null;
+            mInstance = null;
+        }
+    }
+
     public UiccCard getUiccCard() {
         synchronized (mLock) {
             return mUiccCard;
@@ -218,7 +234,8 @@ public class UiccController extends Handler {
         mIccChangedRegistrants.notifyRegistrants();
     }
 
-    private void log(String string) {
+    private static void log(String string) {
+
         Rlog.d(LOG_TAG, string);
     }
 
