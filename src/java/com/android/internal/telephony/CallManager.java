@@ -109,7 +109,7 @@ public final class CallManager {
 
     protected String mDialString;
 
-    private boolean mSpeedUpAudioForMtCall = false;
+    protected boolean mSpeedUpAudioForMtCall = false;
 
     // state registrants
     protected final RegistrantList mPreciseCallStateRegistrants
