@@ -104,6 +104,7 @@ public interface Phone {
     static final String REASON_LOST_DATA_CONNECTION = "lostDataConnection";
     static final String REASON_CONNECTED = "connected";
     static final String REASON_SINGLE_PDN_ARBITRATION = "SinglePdnArbitration";
+    static final String REASON_IWLAN_AVAILABLE = "iwlanAvailable";
 
     // Used for band mode selection methods
     static final int BM_UNSPECIFIED = 0; // selected by baseband automatically

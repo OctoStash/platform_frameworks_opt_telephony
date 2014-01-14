@@ -123,6 +123,9 @@ public final class DcTracker extends DcTrackerBase {
                 null);
         p.mCi.registerForDataNetworkStateChanged (this, DctConstants.EVENT_DATA_STATE_CHANGED,
                 null);
+        p.getServiceStateTracker().registerForIwlanAvailable(this,
+                DctConstants.EVENT_RADIO_IWLAN_AVAILABLE, null);
+
         p.getCallTracker().registerForVoiceCallEnded (this, DctConstants.EVENT_VOICE_CALL_ENDED,
                 null);
         p.getCallTracker().registerForVoiceCallStarted (this, DctConstants.EVENT_VOICE_CALL_STARTED,
@@ -216,6 +219,13 @@ public final class DcTracker extends DcTrackerBase {
                 (apnContextState == DctConstants.State.FAILED));
         boolean dataAllowed = isDataAllowed();
         boolean possible = dataAllowed && apnTypePossible;
+
+        if ((apnContext.getDataProfileType().equals(PhoneConstants.APN_TYPE_DEFAULT)
+                    || apnContext.getDataProfileType().equals(PhoneConstants.APN_TYPE_IA))
+                && mPhone.getServiceState().getRilDataRadioTechnology()
+                == ServiceState.RIL_RADIO_TECHNOLOGY_IWLAN) {
+            possible = false;
+        }
 
         if (VDBG) {
             log(String.format("isDataPossible(%s): possible=%b isDataAllowed=%b " +
@@ -538,8 +548,18 @@ public final class DcTracker extends DcTrackerBase {
         }
     }
 
-    private boolean isDataAllowed(ApnContext apnContext) {
-        return apnContext.isReady() && isDataAllowed();
+    protected boolean isDataAllowed(ApnContext apnContext) {
+        //If RAT is iwlan then dont allow default/IA PDP at all.
+        //Rest of APN types can be evaluated for remaining conditions.
+        if ((apnContext.getDataProfileType().equals(PhoneConstants.APN_TYPE_DEFAULT)
+                    || apnContext.getDataProfileType().equals(PhoneConstants.APN_TYPE_IA))
+                && mPhone.getServiceState().getRilDataRadioTechnology()
+                == ServiceState.RIL_RADIO_TECHNOLOGY_IWLAN) {
+            log("Default data call activation not allowed in iwlan.");
+            return false;
+        } else {
+            return apnContext.isReady() && isDataAllowed();
+        }
     }
 
     //****** Called from ServiceStateTracker
@@ -584,6 +604,12 @@ public final class DcTracker extends DcTrackerBase {
 
         boolean attachedState = mAttached.get();
         boolean desiredPowerState = mPhone.getServiceStateTracker().getDesiredPowerState();
+        int radioTech = mPhone.getServiceState().getRilDataRadioTechnology();
+        if (radioTech == ServiceState.RIL_RADIO_TECHNOLOGY_IWLAN
+                && desiredPowerState == false) {
+            desiredPowerState = true;
+        }
+
         IccRecords r = mIccRecords.get();
         boolean recordsLoaded = (r != null) ? r.getRecordsLoaded() : false;
 
@@ -2360,6 +2386,10 @@ public final class DcTracker extends DcTrackerBase {
                     loge("EVENT_CLEAN_UP_CONNECTION request w/o apn context, call super");
                     super.handleMessage(msg);
                 }
+                break;
+
+            case DctConstants.EVENT_RADIO_IWLAN_AVAILABLE:
+                notifyOffApnsOfAvailability(Phone.REASON_IWLAN_AVAILABLE);
                 break;
 
             default:
