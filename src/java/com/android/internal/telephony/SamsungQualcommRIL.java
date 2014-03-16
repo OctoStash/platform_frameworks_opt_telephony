@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 The CyanogenMod Project
+ * Copyright (C) 2012-2014 The CyanogenMod Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,11 +65,10 @@ public class SamsungQualcommRIL extends RIL implements CommandsInterface {
     private boolean mIsSendingSMS = false;
     private boolean isGSM = false;
     public static final long SEND_SMS_TIMEOUT_IN_MS = 30000;
-    private String homeOperator= SystemProperties.get("ro.cdma.home.operator.numeric");
-    private String operator= SystemProperties.get("ro.cdma.home.operator.alpha");
     private boolean oldRilState = needsOldRilFeature("exynos4RadioState");
     private boolean googleEditionSS = needsOldRilFeature("googleEditionSS");
     private boolean driverCall = needsOldRilFeature("newDriverCall");
+    private boolean driverCallU = needsOldRilFeature("newDriverCallU");
     private boolean dialCode = needsOldRilFeature("newDialCode");
     public SamsungQualcommRIL(Context context, int networkMode,
             int cdmaSubscription) {
@@ -270,7 +269,7 @@ public class SamsungQualcommRIL extends RIL implements CommandsInterface {
     @Override
     protected Object
     responseCallList(Parcel p) {
-        samsungDriverCall = (driverCall && !isGSM) || mRilVersion < 7 ? false : true;
+        samsungDriverCall = driverCallU || (driverCall && !isGSM) || mRilVersion < 7 ? false : true;
         return super.responseCallList(p);
     }
 
@@ -291,7 +290,8 @@ public class SamsungQualcommRIL extends RIL implements CommandsInterface {
                 if(cdmaSubscription != -1) {
                     setCdmaSubscriptionSource(mCdmaSubscription, null);
                 }
-                setCellInfoListRate(Integer.MAX_VALUE, null);
+                if(mRilVersion >= 8)
+                    setCellInfoListRate(Integer.MAX_VALUE, null);
                 notifyRegistrantsRilConnectionChanged(((int[])ret)[0]);
                 break;
             case RIL_UNSOL_NITZ_TIME_RECEIVED:
@@ -367,7 +367,7 @@ public class SamsungQualcommRIL extends RIL implements CommandsInterface {
             case RIL_REQUEST_ENTER_SIM_PUK2: ret =  responseInts(p); break;
             case RIL_REQUEST_CHANGE_SIM_PIN: ret =  responseInts(p); break;
             case RIL_REQUEST_CHANGE_SIM_PIN2: ret =  responseInts(p); break;
-            case RIL_REQUEST_ENTER_NETWORK_DEPERSONALIZATION: ret =  responseInts(p); break;
+            case RIL_REQUEST_ENTER_DEPERSONALIZATION_CODE: ret =  responseInts(p); break;
             case RIL_REQUEST_GET_CURRENT_CALLS: ret =  responseCallList(p); break;
             case RIL_REQUEST_DIAL: ret =  responseVoid(p); break;
             case RIL_REQUEST_GET_IMSI: ret =  responseString(p); break;
@@ -560,15 +560,9 @@ public class SamsungQualcommRIL extends RIL implements CommandsInterface {
     private Object
     operatorCheck(Parcel p) {
         String response[] = (String[])responseStrings(p);
-        for(int i=0; i<3; i++){
+        for(int i=0; i<2; i++){
             if (response[i]!= null){
-                if (i<2){
-                    if (response[i].equals("       Empty") || (response[i].equals("") && !isGSM)) {
-                        response[i]=operator;
-                    }
-                } else if (response[i].equals("31000")|| response[i].equals("11111") || response[i].equals("123456") || response[i].equals("31099") || ((response[i].length()<5  || response[i].length()>6) && !isGSM)){
-                        response[i]=homeOperator;
-                }
+                response[i] = Operators.operatorReplace(response[i]);
             }
         }
         return response;
@@ -622,7 +616,7 @@ public class SamsungQualcommRIL extends RIL implements CommandsInterface {
             Rlog.d(RILJ_LOG_TAG, "setWbAmr(): setting audio parameter - wb_amr=on");
             mAudioManager.setParameters("wide_voice_enable=true");
         }else if (state == 0) {
-            Rlog.d(RILJ_LOG_TAG, "setWbAmr(): setting audio parameter - wb_amr=on");
+            Rlog.d(RILJ_LOG_TAG, "setWbAmr(): setting audio parameter - wb_amr=off");
             mAudioManager.setParameters("wide_voice_enable=false");
         }
     }
@@ -760,5 +754,51 @@ public class SamsungQualcommRIL extends RIL implements CommandsInterface {
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
 
         send(rr);
+    }
+
+    //this method is used in the search network functionality.
+    // in mobile network setting-> network operators
+    @Override
+    protected Object
+    responseOperatorInfos(Parcel p) {
+        String strings[] = (String [])responseStrings(p);
+        ArrayList<OperatorInfo> ret;
+
+        if (strings.length % mQANElements != 0) {
+            throw new RuntimeException(
+                                       "RIL_REQUEST_QUERY_AVAILABLE_NETWORKS: invalid response. Got "
+                                       + strings.length + " strings, expected multiple of " + mQANElements);
+        }
+
+        ret = new ArrayList<OperatorInfo>(strings.length / mQANElements);
+        Operators init = null;
+        if (strings.length != 0) {
+            init = new Operators();
+        }
+        for (int i = 0 ; i < strings.length ; i += mQANElements) {
+            String temp = init.unOptimizedOperatorReplace(strings[i+0]);
+            ret.add (
+                     new OperatorInfo(
+                                      temp, //operatorAlphaLong
+                                      temp,//operatorAlphaShort
+                                      strings[i+2],//operatorNumeric
+                                      strings[i+3]));//state
+        }
+
+        return ret;
+    }
+
+    @Override
+    public void getImsRegistrationState(Message result) {
+        if(mRilVersion >= 8)
+            super.getImsRegistrationState(result);
+        else {
+            if (result != null) {
+                CommandException ex = new CommandException(
+                    CommandException.Error.REQUEST_NOT_SUPPORTED);
+                AsyncResult.forMessage(result, null, ex);
+                result.sendToTarget();
+            }
+        }
     }
 }

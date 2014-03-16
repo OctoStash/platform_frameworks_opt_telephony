@@ -36,14 +36,6 @@ import com.android.internal.telephony.dataconnection.DataCallResponse;
 
 import java.util.ArrayList;
 
-/**
- * Qualcomm RIL class for basebands that do not send the SIM status
- * piggybacked in RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED. Instead,
- * these radios will send radio state and we have to query for SIM
- * status separately.
- *
- * {@hide}
- */
 public class HTCQualcommRIL extends RIL implements CommandsInterface {
 
     private static final int RIL_UNSOL_ENTER_LPM = 1523;
@@ -62,8 +54,6 @@ public class HTCQualcommRIL extends RIL implements CommandsInterface {
     @Override
     protected Object
     responseIccCardStatus(Parcel p) {
-        Object ret = super.responseIccCardStatus(p);
-
         // force CDMA + LTE network mode
         boolean forceCdmaLte = needsOldRilFeature("forceCdmaLteNetworkType");
 
@@ -71,55 +61,39 @@ public class HTCQualcommRIL extends RIL implements CommandsInterface {
             setPreferredNetworkType(NETWORK_MODE_LTE_CDMA_EVDO, null);
         }
 
-        return ret;
+        return super.responseIccCardStatus(p);
     }
 
     @Override
-    protected Object
-    responseSignalStrength(Parcel p) {
-        /* HTC signal strength format:
-         * 0: GW_SignalStrength
-         * 1: GW_SignalStrength.bitErrorRate
-         * 2: CDMA_SignalStrength.dbm
-         * 3: CDMA_SignalStrength.ecio
-         * 4: EVDO_SignalStrength.dbm
-         * 5: EVDO_SignalStrength.ecio
-         * 6: EVDO_SignalStrength.signalNoiseRatio
-         * 7: ATT_SignalStrength.dbm
-         * 8: ATT_SignalStrength.ecno
-         * 9: LTE_SignalStrength.signalStrength
-         * 10: LTE_SignalStrength.rsrp
-         * 11: LTE_SignalStrength.rsrq
-         * 12: LTE_SignalStrength.rssnr
-         * 13: LTE_SignalStrength.cqi
-         */
+    protected DataCallResponse getDataCallResponse(Parcel p, int version) {
+        DataCallResponse dataCall = new DataCallResponse();
 
-        int parcelSize = p.dataSize();
-
-        int gsmSignalStrength = p.readInt();
-        int gsmBitErrorRate = p.readInt();
-        int cdmaDbm = p.readInt();
-        int cdmaEcio = p.readInt();
-        int evdoDbm = p.readInt();
-        int evdoEcio = p.readInt();
-        int evdoSnr = p.readInt();
-        if (parcelSize == 14) {
-            /* Signal strength parcel contains HTC ATT signal strength */
-            p.readInt(); // ATT_SignalStrength.dbm
-            p.readInt(); // ATT_SignalStrength.ecno
+        dataCall.version = version;
+        dataCall.status = p.readInt();
+        dataCall.suggestedRetryTime = p.readInt();
+        dataCall.cid = p.readInt();
+        dataCall.active = p.readInt();
+        dataCall.type = p.readString();
+        dataCall.ifname = p.readString();
+        /* Check dataCall.active != 0 so address, dns, gateways are provided
+         * when switching LTE<->3G<->2G */
+        if ((dataCall.status == DcFailCause.NONE.getErrorCode()) &&
+                TextUtils.isEmpty(dataCall.ifname) && dataCall.active != 0) {
+            throw new RuntimeException("getDataCallResponse, no ifname");
         }
-        int lteSignalStrength = p.readInt();
-        int lteRsrp = p.readInt();
-        int lteRsrq = p.readInt();
-        int lteRssnr = p.readInt();
-        int lteCqi = p.readInt();
-        boolean isGsm = (mPhoneType == RILConstants.GSM_PHONE);
-
-        SignalStrength signalStrength = new SignalStrength(gsmSignalStrength,
-                gsmBitErrorRate, cdmaDbm, cdmaEcio, evdoDbm, evdoEcio, evdoSnr,
-                lteSignalStrength, lteRsrp, lteRsrq, lteRssnr, lteCqi, isGsm);
-
-        return signalStrength;
+        String addresses = p.readString();
+        if (!TextUtils.isEmpty(addresses)) {
+            dataCall.addresses = addresses.split(" ");
+        }
+        String dnses = p.readString();
+        if (!TextUtils.isEmpty(dnses)) {
+            dataCall.dnses = dnses.split(" ");
+        }
+        String gateways = p.readString();
+        if (!TextUtils.isEmpty(gateways)) {
+            dataCall.gateways = gateways.split(" ");
+        }
+        return dataCall;
     }
 
     @Override
@@ -177,31 +151,9 @@ public class HTCQualcommRIL extends RIL implements CommandsInterface {
                 setPreferredNetworkType(mPreferredNetworkType, null);
                 setCdmaSubscriptionSource(mCdmaSubscription, null);
                 setCellInfoListRate(Integer.MAX_VALUE, null);
-
-                boolean skipRadioPowerOff = needsOldRilFeature("skipradiooff");
-
-                // Initial conditions
-                if (!skipRadioPowerOff) {
-                    setRadioPower(false, null);
-                }
-                setPreferredNetworkType(mPreferredNetworkType, null);
-                setCdmaSubscriptionSource(mCdmaSubscription, null);
                 notifyRegistrantsRilConnectionChanged(((int[])ret)[0]);
                 break;
             }
-        }
-    }
-
-    /**
-     * Notify all registrants that the ril has connected or disconnected.
-     *
-     * @param rilVer is the version of the ril or -1 if disconnected.
-     */
-    private void notifyRegistrantsRilConnectionChanged(int rilVer) {
-        mRilVersion = rilVer;
-        if (mRilConnectedRegistrants != null) {
-            mRilConnectedRegistrants.notifyRegistrants(
-                                new AsyncResult (null, new Integer(rilVer), null));
         }
     }
 }
